@@ -26,6 +26,8 @@ try:
 except Exception:
     print('No session could be restored')
 
+class AbnormalStatusCode(Exception):
+    pass
 
 def solve_captch(html):
     # <img src='image.php?action=regimage&amp;imagehash=41df35630571a24397eecfc807a029ef&amp;secret=' border='0' alt='CAPTCHA' />
@@ -35,9 +37,10 @@ def solve_captch(html):
     captcha_img_hash = captcha_img_url.split('imagehash=')[1].split('&')[0]
 
     response_captcha_img = requests.get(captcha_img_url)
-    if response_captcha_img.status_code == 200:
-        with open('captcha.jpg', 'wb') as f:
-            f.write(response_captcha_img.content)
+    if 200 != response_captcha_img.status_code:
+        raise AbnormalStatusCode(response_captcha_img.status_code)
+    with open('captcha.jpg', 'wb') as f:
+        f.write(response_captcha_img.content)
 
     ocr = ddddocr.DdddOcr(old=True)
     with open('captcha.jpg', 'rb') as f:
@@ -52,7 +55,7 @@ def solve_captch(html):
 response = session.get(attendance_url)
 
 if 200 != response.status_code:
-    raise Exception(f'Abnormal status code: {response.status_code}')
+    raise AbnormalStatusCode(response.status_code)
 
 if 'login.php' in response.url:
     print('Login required before proceeding')
@@ -70,21 +73,23 @@ if 'login.php' in response.url:
     }
     response = session.post(login_url, data=data)
 
-if '签到成功' in response.text:
-    tree = lxml.html.fromstring(response.text)
-    r = tree.xpath('//a[contains(@href, "userdetails")]')[0]
-    level = r.get('class').split('_')[0]
-    username = r.text_content()
-    points = tree.xpath(
-        '//a[contains(@href, "mybonus.php")]/following-sibling::text()[following::a[contains(@href, "attendance.php")]]'
-    )[0].split()[1]
-    result = tree.xpath("//td/table//table//p")[0].text_content()
+if '签到成功' not in response.text:
+    print(response.text)
 
-    print('站点: soulvoice.club')
-    print('用户名: ', username)
-    print('等级: ', level)
-    print('魔力: ', points)
-    print('结果: ', result)
+tree = lxml.html.fromstring(response.text)
+r = tree.xpath('//a[contains(@href, "userdetails")]')[0]
+level = r.get('class').split('_')[0]
+username = r.text_content()
+points = tree.xpath(
+    '//a[contains(@href, "mybonus.php")]/following-sibling::text()[following::a[contains(@href, "attendance.php")]]'
+)[0].split()[1]
+result = tree.xpath("//td/table//table//p")[0].text_content()
+
+print('站点: soulvoice.club')
+print('用户名: ', username)
+print('等级: ', level)
+print('魔力: ', points)
+print('结果: ', result)
 
 # to save cookies:
 cookies = requests.utils.dict_from_cookiejar(
